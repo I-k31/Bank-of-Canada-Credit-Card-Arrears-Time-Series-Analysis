@@ -1,53 +1,74 @@
 # Bank of Canada Credit Card Arrears: Time-Series Analysis
 
-**Research question:** Does a change in the 5-year mortgage rate predict a change in credit card arrears three quarters later?
+## Research question
 
-I pulled Bank of Canada data through the Valet API, built a clean quarterly dataset, tested the series for stationarity, and fit an OLS regression on differenced data. **Short answer: no significant relationship.** The two series look strongly related in levels (correlation of about 0.65), but that link disappears once the trends are removed.
-
-## Key Result
-
-| Metric | Result |
-|---|---|
-| Model | OLS: change in arrears on change in 5-year mortgage rate, lagged 3 quarters |
-| Observations | 41 quarters |
-| Mortgage-rate coefficient | 0.027 (std. error 0.029) |
-| p-value | 0.363 |
-| 95% confidence interval | [-0.032, 0.087] |
-| R-squared / adjusted | 0.021 / -0.004 |
-| Durbin-Watson | 1.857 |
-
-The confidence interval includes zero, and the model explains about 2% of the variation in quarterly changes in arrears. In levels, arrears and the lagged mortgage rate correlate at about 0.65, but both series trend over the period, so that correlation says little about a real relationship. Differencing removes the trends, and the relationship goes away.
+Does a change in the 5-year mortgage rate predict a change in credit card arrears three quarters later?
 
 ## Data
 
-All series come from the Bank of Canada [Valet API](https://www.bankofcanada.ca/valet/docs).
+Data were retrieved from the Bank of Canada Valet API.
 
-| Variable | Series ID | Frequency |
+| Variable | Series ID | Frequency used |
 |---|---|---|
-| Credit card arrears rate (%) | `FVI_LOANS_ARR_CC` | Quarterly |
-| Overnight rate (%) | `V39079` | Daily, averaged to quarterly |
-| 5-year conventional mortgage rate (%) | `V80691335` | Monthly, averaged to quarterly |
-| CPI-trim (%) | `CPI_TRIM` | Monthly, averaged to quarterly |
+| Credit card arrears | `FVI_LOANS_ARR_CC` | Quarterly |
+| Overnight rate | `V39079` | Daily observations averaged by quarter |
+| 5-year conventional mortgage rate | `V80691335` | Monthly observations averaged by quarter |
+| CPI-trim | `CPI_TRIM` | Monthly observations averaged by quarter |
 
-The merged dataset has **45 quarterly observations, from 2015 Q1 to 2026 Q1**. The arrears series is the limiting factor, since it only starts in 2015.
+The merged dataset contains 45 quarterly observations from 2015 Q1 to 2026 Q1. Household credit (`V36415`) was not included in the merged dataset because its available history ends in 2020.
 
-I also looked at household credit (`V36415`) but dropped it because its history ends in 2020.
+## Exploratory analysis
+
+The correlation between credit card arrears and the 5-year mortgage rate in levels is approximately 0.61. The overnight rate and 5-year mortgage rate are highly correlated (approximately 0.97). CPI-trim has little correlation with credit card arrears in levels (approximately -0.05).
+
+The lag-correlation comparison showed the highest correlation between arrears and the 5-year mortgage rate at a three-quarter lag (approximately 0.645). This lag was selected for the regression analysis based on that exploratory comparison.
 
 ## Method
 
-1. **Discover and pull series.** I searched the Valet series list for arrears, interest rates and inflation measures, then pulled the observations for each series.
-2. **Build the dataset.** I resampled the higher-frequency series to quarterly averages and merged them with the arrears series into one 45-row table.
-3. **Explore.** Time-series plots (with the 2020 and 2022–23 periods shaded), a correlation matrix, scatter plots, and lag correlations.
-4. **Choose variables.**
-   - The overnight rate and the 5-year mortgage rate are almost the same signal in this sample (correlation of 0.97), so using both would be redundant. I kept the **mortgage rate**, which is the more natural variable for consumer credit.
-   - **CPI-trim** was dropped because its correlation with arrears was weak at the lags I tested.
-5. **Test for stationarity.** Augmented Dickey-Fuller tests on each series, then first-order differencing, which made the series stationary.
-6. **Regression.** Difference every series, shift the mortgage rate back 3 quarters, and fit OLS with `statsmodels`. I chose the 3-quarter lag from the lag-correlation table.
+1. Apply the Augmented Dickey–Fuller (ADF) test to each original series.
+2. First-difference the series and apply the ADF test again.
+3. Fit an OLS regression of the change in credit card arrears on the change in the 5-year mortgage rate lagged by three quarters.
+4. Review the coefficient, p-value, confidence interval, fit statistics, and residual diagnostics.
+
+The ADF tests on the original series did not reject a unit root at the 5% level. After first differencing, the ADF tests rejected a unit root at the 5% level for each series. This is evidence consistent with stationarity, rather than proof that the series are stationary.
+
+## Final regression results
+
+The final differenced regression uses 41 quarterly observations.
+
+| Statistic | Result |
+|---|---:|
+| Mortgage-rate change coefficient (3-quarter lag) | 0.027 |
+| Standard error | 0.029 |
+| p-value | 0.363 |
+| 95% confidence interval | [-0.032, 0.087] |
+| R² | 0.021 |
+| Adjusted R² | -0.004 |
+| Durbin–Watson statistic | 1.857 |
+
+The estimated coefficient is positive, but it is not statistically significant at the 5% level. The confidence interval includes zero, and the model explains little of the variation in quarterly changes in credit card arrears.
 
 ## Limitations
 
-- **Small sample.** 41 usable observations and one predictor. The test has little power, so "not significant" means "no evidence of an effect here", not "no effect".
-- **One predictor.** I did not model other drivers of arrears, such as unemployment, household debt or income.
-- **Lag choice.** I picked the lag from correlations on the raw levels, where the correlations for lags 1 to 4 are almost identical (0.63 to 0.65). I haven't tested other lags on the differenced data.
-- **Residuals are not normal.** The Jarque-Bera test strongly rejects normality (skew of -2.2, kurtosis of 9.5), which suggests a few extreme quarters. The p-values assume roughly normal errors, so they should be treated with caution.
-- **No out-of-sample test.** I did not evaluate the model's forecasts on held-out data, and I make no claim about predictive
+- The analysis uses a relatively small sample of quarterly observations.
+- The regression includes only one predictor.
+- The three-quarter lag was selected using correlations in the original series; the lag was not re-selected using the differenced series.
+- The final model's residuals are not normally distributed (Jarque–Bera statistic approximately 105.2, p-value approximately 1.4 × 10⁻²³; skewness approximately -2.2; kurtosis approximately 9.5).
+- The analysis does not include an out-of-sample evaluation.
+- The exploratory levels regression has a low Durbin–Watson statistic (approximately 0.25), indicating substantial positive residual autocorrelation; its usual OLS inference should therefore be treated cautiously.
+
+## Possible next steps
+
+- Inspect quarters with unusually large changes.
+- Revisit the lag choice and assess it using the differenced series.
+- Consider Newey–West standard errors.
+- Explore additional predictors or alternative time-series models, such as a distributed-lag model or VAR.
+- Evaluate the model on held-out, more recent quarters.
+
+## Tools
+
+- Python
+- pandas
+- matplotlib
+- statsmodels
+- Bank of Canada Valet API
